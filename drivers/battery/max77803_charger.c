@@ -28,16 +28,14 @@
 #define REDUCE_CURRENT_STEP	100
 #define MINIMUM_INPUT_CURRENT	300
 
-#if defined(CONFIG_TARGET_LOCALE_KOR)
 int SIOP_INPUT_LIMIT_CURRENT = 1200;
 int SIOP_CHARGING_LIMIT_CURRENT = 1000;
+
+#if defined(CONFIG_TARGET_LOCALE_KOR)
 #define SIOP_INPUT_LIMIT_CURRENT_SPECIAL 1100
 static struct device_attribute sec_chg_attrs[] = {
 	SEC_CHG_ATTR(siop_input_limit),
 };
-#else
-#define SIOP_INPUT_LIMIT_CURRENT 1200
-#define SIOP_CHARGING_LIMIT_CURRENT 1000
 #endif
 
 struct max77803_charger_data {
