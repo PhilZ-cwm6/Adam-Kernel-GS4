@@ -1,0 +1,8 @@
+echo "make clean"
+make clean
+echo "make arch=arm wanam_i9500_defconfig"
+make arch=arm wanam_i9500_defconfig
+echo "make ARCH=arm"
+make ARCH=arm
+echo "Done!"
+

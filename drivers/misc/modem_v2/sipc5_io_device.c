@@ -42,7 +42,7 @@ static unsigned long dbg_flags = 0;
 module_param(dbg_flags, ulong, S_IRUGO | S_IWUSR | S_IWGRP);
 MODULE_PARM_DESC(dbg_flags, "sipc iodevice debug flags\n");
 
-static int fd_waketime = (4 * HZ);
+static int fd_waketime = (6 * HZ);
 module_param(fd_waketime, int, S_IRUGO);
 MODULE_PARM_DESC(fd_waketime, "fd wake lock timeout");
 
@@ -90,7 +90,8 @@ static ssize_t show_loopback(struct device *dev,
 	unsigned char *ip = (unsigned char *)&msd->loopback_ipaddr;
 	char *p = buf;
 
-	p += sprintf(buf, "%u.%u.%u.%u\n", ip[0], ip[1], ip[2], ip[3]);
+	p += sprintf(buf, "%u.%u.%u.%u en(%d)\n", ip[0], ip[1], ip[2], ip[3],
+		test_bit(IOD_DEBUG_IPC_LOOPBACK, &dbg_flags));
 
 	return p - buf;
 }
@@ -101,8 +102,18 @@ static ssize_t store_loopback(struct device *dev,
 	struct miscdevice *miscdev = dev_get_drvdata(dev);
 	struct modem_shared *msd =
 		container_of(miscdev, struct io_device, miscdev)->msd;
+	struct io_device *iod = to_io_device(miscdev);
 
 	msd->loopback_ipaddr = ipv4str_to_be32(buf, count);
+	if (msd->loopback_ipaddr)
+		set_bit(IOD_DEBUG_IPC_LOOPBACK, &dbg_flags);
+	else
+		clear_bit(IOD_DEBUG_IPC_LOOPBACK, &dbg_flags);
+
+	mif_info("loopback(%s), en(%d)\n", buf,
+				test_bit(IOD_DEBUG_IPC_LOOPBACK, &dbg_flags));
+	if (msd->loopback_start)
+		msd->loopback_start(iod, msd);
 
 	return count;
 }
