@@ -42,6 +42,7 @@
 #define LEVEL_IS_HBM(level)		(level >= 6)
 #define LEVEL_IS_PSRE(level)		(level >= 6)
 
+#define MAX_GAMMA			300
 #define DEFAULT_GAMMA_LEVEL		GAMMA_143CD
 
 #define LDI_ID_REG			0x04
@@ -112,6 +113,9 @@ static const unsigned int candela_table[GAMMA_MAX] = {
 static struct lcd_info *g_lcd;
 
 extern void (*panel_touchkey_on)(void);
+extern void (*panel_touchkey_off)(void);
+
+extern void mdnie_update_brightness(int brightness, bool is_auto, bool force);
 
 static int s6e8fa0_write(struct lcd_info *lcd, const u8 *seq, u32 len)
 {
@@ -587,7 +591,7 @@ static int s6e8fa0_set_elvss(struct lcd_info *lcd, u8 force)
 	case 266 ... 282:
 		elvss_level = ELVSS_STATUS_282;
 		break;
-	case 283 ... 300:
+	case 283 ... 299:
 		elvss_level = ELVSS_STATUS_300;
 		break;
 	case 400:
@@ -964,6 +968,8 @@ static int update_brightness(struct lcd_info *lcd, u8 force)
 			brightness, lcd->bl, candela_table[lcd->bl]);
 	}
 
+	mdnie_update_brightness(brightness, lcd->auto_brightness, false);
+
 	mutex_unlock(&lcd->bl_lock);
 
 	return 0;
@@ -975,9 +981,20 @@ static void s6e8fa0_ldi_touchkey_on(void)
 {
 	struct lcd_info *lcd = g_lcd;
 
-	if (lcd->ldi_enable) {
+	if (lcd != NULL && lcd->ldi_enable) {
 		s6e8fa0_write(lcd, SEQ_TEST_KEY_ON_FC, ARRAY_SIZE(SEQ_TEST_KEY_ON_FC));
 		s6e8fa0_write(lcd, SEQ_TOUCHKEY_ON, ARRAY_SIZE(SEQ_TOUCHKEY_ON));
+		s6e8fa0_write(lcd, SEQ_TEST_KEY_OFF_FC, ARRAY_SIZE(SEQ_TEST_KEY_OFF_FC));
+	}
+}
+
+static void s6e8fa0_ldi_touchkey_off(void)
+{
+	struct lcd_info *lcd = g_lcd;
+
+	if (lcd != NULL && lcd->ldi_enable) {
+		s6e8fa0_write(lcd, SEQ_TEST_KEY_ON_FC, ARRAY_SIZE(SEQ_TEST_KEY_ON_FC));
+		s6e8fa0_write(lcd, SEQ_TOUCHKEY_OFF, ARRAY_SIZE(SEQ_TOUCHKEY_OFF));
 		s6e8fa0_write(lcd, SEQ_TEST_KEY_OFF_FC, ARRAY_SIZE(SEQ_TEST_KEY_OFF_FC));
 	}
 }
@@ -987,6 +1004,10 @@ static int s6e8fa0_ldi_init(struct lcd_info *lcd)
 	int ret = 0;
 
 	s6e8fa0_write(lcd, SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0));
+	s6e8fa0_write(lcd, SEQ_TEST_KEY_ON_FC, ARRAY_SIZE(SEQ_TEST_KEY_ON_FC));
+
+	s6e8fa0_write(lcd, SEQ_TOUCHKEY_OFF, ARRAY_SIZE(SEQ_TOUCHKEY_OFF));
+	s6e8fa0_write(lcd, SEQ_TEST_KEY_OFF_FC, ARRAY_SIZE(SEQ_TEST_KEY_OFF_FC));
 
 	s6e8fa0_write(lcd, SEQ_SLEEP_OUT, ARRAY_SIZE(SEQ_SLEEP_OUT));
 
@@ -1336,7 +1357,7 @@ static ssize_t temperature_store(struct device *dev,
 		mutex_unlock(&lcd->bl_lock);
 
 		if (lcd->ldi_enable)
-			update_brightness(lcd, 1);
+			update_brightness(lcd, 0);
 
 		dev_info(dev, "%s: %d, %d, %d\n", __func__, value, lcd->temperature, lcd->elvss_compensation);
 	}
@@ -1464,6 +1485,7 @@ static int s6e8fa0_probe(struct mipi_dsim_device *dsim)
 	/* dev_set_drvdata(dsim->dev, lcd); */
 
 	panel_touchkey_on = s6e8fa0_ldi_touchkey_on;
+	panel_touchkey_off = s6e8fa0_ldi_touchkey_off;
 
 	mutex_init(&lcd->lock);
 	mutex_init(&lcd->bl_lock);
@@ -1507,6 +1529,8 @@ static int s6e8fa0_probe(struct mipi_dsim_device *dsim)
 	update_brightness(lcd, 1);
 
 	dev_info(&lcd->ld->dev, "%s lcd panel driver has been probed.\n", __FILE__);
+
+	s6e8fa0_power_on(lcd);
 
 	return 0;
 
